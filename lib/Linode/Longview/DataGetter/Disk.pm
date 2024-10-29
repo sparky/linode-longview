@@ -31,11 +31,11 @@ See the full license at L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
-require 'syscall.ph';
 use Linode::Longview::Util qw(:BASIC detect_system);
 use POSIX 'uname';
 use Cwd 'abs_path';
 use Config;
+use Filesys::Df;
 
 our $DEPENDENCIES = [];
 
@@ -188,42 +188,21 @@ sub _get_mounted_info {
 			}
 		}
 
-		my ( $type, $bsize, $blocks, $bfree, $bavail, $files, $ffree )
-			= _statfs($path);
+		my $df = df( $path, 1 );
 
 		(my $e_device = $device) =~ s/\./\\\./g;
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.free"}   = $bfree * $bsize if (defined($bfree) && defined($bsize));
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.total"}  = $bsize * $blocks if (defined($bsize) && defined($blocks));
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.ifree"}  = $ffree if (defined($ffree));
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.itotal"} = $files if (defined($files));
+		$dataref->{LONGTERM}->{"Disk.$e_device.fs.free"}   = $df->{bfree}
+			if defined $df->{bfree};
+		$dataref->{LONGTERM}->{"Disk.$e_device.fs.total"}  = $df->{blocks}
+			if defined $df->{blocks};
+		$dataref->{LONGTERM}->{"Disk.$e_device.fs.ifree"}  = $df->{ffree}
+			if defined $df->{ffree};
+		$dataref->{LONGTERM}->{"Disk.$e_device.fs.itotal"} = $df->{files}
+			if defined $df->{files};
 		$dataref->{INSTANT}->{"Disk.$e_device.fs.path"}    = $path if (defined($path));
 		$dataref->{INSTANT}->{"Disk.$e_device.mounted"}    = 1;
 	}
 	return $dataref;
-}
-
-sub _statfs {
-	my $path = shift or do{
-		$logger->info("_statfs no path provided");
-		return ();
-	};
-	my $fmt = '\0' x 512;
-	syscall( &SYS_statfs, $path, $fmt ) == 0 or do {
-		$logger->info("Couldn't call statfs syscall: $!");
-		return ();
-	};
-
-	# unsigned long vs unsigned quad on 32 vs 64 bit boxes
-	if ( !defined($Config{use64bitall}) ) {
-		return unpack 'L7', $fmt;
-	}
-	elsif ( defined($Config{use64bitall}) ) {
-		return unpack 'Q7', $fmt;
-	}
-	else {
-		$logger->info('Unable to determine architecture');
-		return ();
-	}
 }
 
 1;

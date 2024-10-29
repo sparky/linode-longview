@@ -38,12 +38,3 @@ echo "==== Installing Longview core dependencies ===="
 echo "==== Installing Longview-MySQL dependencies ===="
 /tmp/cpanm -q  -L $BASE_DIR DBD::mysql
 rm /tmp/cpanm
-
-echo "==== Compiling headers ===="
-h2ph -d $BASE_DIR /usr/include/syscall.h
-h2ph -d $BASE_DIR /usr/include/sys/syscall.h
-h2ph -d $BASE_DIR /usr/include/asm/unistd.h
-h2ph -d $BASE_DIR /usr/include/asm/unistd_32.h
-h2ph -d $BASE_DIR /usr/include/asm/unistd_64.h
-h2ph -d $BASE_DIR /usr/include/bits/wordsize.h
-h2ph -d $BASE_DIR /usr/include/bits/syscall.h
