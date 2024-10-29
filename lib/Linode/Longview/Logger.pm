@@ -25,29 +25,52 @@ our $levels = {
 # notice  5 # highlighted
 # info    6 # plain
 # debug   7 # grey
-my %syslog = (
-	trace => 7,
-	debug => 7,
-	info  => 6,
-	warn  => 5,
-	error => 4,
-	fatal => 3,
-	logdie => 2,
+my %colour = (
+	trace  => [ "[trace] ", "<7>", "\033[90m", ], # grey
+	debug  => [ "[debug] ", "<7>", "\033[90m", ], # grey
+	info   => [ "[info]  ", "<6>", "",         ], # normal
+	warn   => [ "[warn]  ", "<5>", "\033[1m",  ], # bold
+	error  => [ "[error] ", "<4>", "\033[93m", ], # yellow
+	fatal  => [ "[fatal] ", "<3>", "\033[31m", ], # red
+	logdie => [ "[DIE]   ", "<2>", "\033[31m", ], # red
+	end    => [ "\n",       "\n",  "\033[0m\n", ],
 );
 
-foreach my $type ( keys %$levels )
 {
-	no strict 'refs';
-	my $level = $levels->{ $type };
-	my $syslog_level = $syslog{ $type };
-	*{$type} = sub {
-		my ( $self, $message ) = @_;
+	my $colour_mode = 0;
+	if ( -t STDOUT )
+	{
+		# If this is a TTY use ANSI codes. Ideally, we should also check
+		# terminal capabilities, but it is unlikely one will not know
+		# those simple codes.
+		$colour_mode = 2;
+	}
+	elsif ( length $ENV{JOURNAL_STREAM} )
+	{
+		# Not a tty? systemd will set the JOURNAL_STREAM environment
+		# variable. Ideally we should check weather there is something
+		# at the other end of the stream listening. That env variable
+		# might be a "ghost".
+		$colour_mode = 1;
+	}
 
-		chomp $message;
-		printf( "<%d>%s\n", $syslog_level, $message )
-			if $level <= $self->{level};
-		die "$message" if $type eq 'logdie';
-	};
+	my $suffix = $colour{end}[ $colour_mode ];
+	foreach my $type ( keys %$levels )
+	{
+		no strict 'refs';
+		my $level = $levels->{ $type };
+		my $prefix = $colour{ $type }[ $colour_mode ];
+		my $fmt = "$prefix%s$suffix";
+		*{$type} = sub {
+			my ( $self, $message ) = @_;
+
+			chomp $message;
+			STDOUT->printf( $fmt, $message )
+				if $level <= $self->{level};
+			STDOUT->flush();
+			die "$message" if $type eq 'logdie';
+		};
+	}
 }
 
 sub new {
