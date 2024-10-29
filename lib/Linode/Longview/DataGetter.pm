@@ -41,8 +41,7 @@ our $module_order = [];
 
 use Linode::Longview::Util;
 
-use FindBin;
-my $module_path = "$FindBin::RealBin/Longview/DataGetter/";
+my $module_path = __FILE__ =~ s#\.pm#/#r;
 
 sub run_order {
   return $module_order;

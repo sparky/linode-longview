@@ -31,12 +31,13 @@ See the full license at L<http://www.gnu.org/licenses/>.
 =cut
 
 BEGIN {
-	use Config;
 	use FindBin;
-	push @INC, "$FindBin::RealBin/../";
-	push @INC, "$FindBin::RealBin/../lib/perl5";
-	push @INC, "$FindBin::RealBin/../lib/perl5/${Config{archname}}/";
-	push @INC, "$FindBin::RealBin/../usr/include";
+	my $local_lib = "$FindBin::RealBin/../lib";
+
+	# If running from the repo, look for all the modules locally first
+	unshift @INC, $local_lib
+		if -d "$local_lib/Linode";
+
 	{
 		no warnings 'once';
 		$Net::HTTP::SOCKET_CLASS = 'IO::Socket::INET6';
