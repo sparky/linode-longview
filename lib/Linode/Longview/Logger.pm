@@ -7,7 +7,6 @@ our @EXPORT = qw($levels);
 
 use File::Path;
 use POSIX 'strftime';
-use Log::LogLite;
 
 our $levels = {
     trace  => 6,
@@ -18,37 +17,51 @@ our $levels = {
     fatal  => 1,
     logdie => 0,
 };
-my $LOGDIR = "/var/log/linode/";
+# emerg   0 # red
+# alert   1 # red
+# crit    2 # red
+# err     3 # red
+# warning 4 # yellow
+# notice  5 # highlighted
+# info    6 # plain
+# debug   7 # grey
+my %syslog = (
+	trace => 7,
+	debug => 7,
+	info  => 6,
+	warn  => 5,
+	error => 4,
+	fatal => 3,
+	logdie => 2,
+);
 
-for my $level ( keys %$levels ) {
-    no strict 'refs';
-    *{$level} = sub {
-        my ( $self, $message ) = @_;
+foreach my $type ( keys %$levels )
+{
+	no strict 'refs';
+	my $level = $levels->{ $type };
+	my $syslog_level = $syslog{ $type };
+	*{$type} = sub {
+		my ( $self, $message ) = @_;
 
-        my $ts = strftime( '%m/%d %T', localtime );
-        $self->{logger}->write(
-            sprintf( '%s %s Longview[%i] - %s', $ts, uc($level), $$, $message ),
-            $levels->{$level} );
-        die "$message" if $level eq 'logdie';
-    };
+		chomp $message;
+		printf( "<%d>%s\n", $syslog_level, $message )
+			if $level <= $self->{level};
+		die "$message" if $type eq 'logdie';
+	};
 }
 
 sub new {
     my ( $class, $level ) = @_;
-    my $self = {};
-
-    mkpath($LOGDIR) unless (-d $LOGDIR);
-    $self->{logger}
-        = Log::LogLite->new( $LOGDIR . 'longview.log', $level )
-        or die "Couldn't create logger object: $!";
-    $self->{logger}->template("<message>\n");
+    my $self = {
+	    level => $level,
+    };
 
     return bless $self, $class;
 }
 
 sub level {
 	my ( $self, $level ) = @_;
-	$self->{logger}->level($level);
+	$self->{level} = $level;
 }
 
 1;
