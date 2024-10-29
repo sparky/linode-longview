@@ -1,0 +1,11 @@
+[Unit]
+Description=Linode Longview Agent
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/linode-longview
+ExecReload=kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

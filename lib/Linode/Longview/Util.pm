@@ -222,18 +222,12 @@ sub find_procfs {
 }
 
 sub daemonize_self {
- 	#<<<   perltidy ignore
- 	chdir '/'                      or $logger->logdie("Can't chdir to /: $!");
- 	open STDIN, '<', '/dev/null'   or $logger->logdie("Can't read /dev/null: $!");
- 	open STDOUT, '>>', '/dev/null' or $logger->logdie("Can't write to /dev/null: $!");
- 	open STDERR, '>>', '/dev/null' or $logger->logdie("Can't write to /dev/null: $!");
+	chdir '/'
+		or $logger->logdie("Can't chdir to /: $!");
 	tie *STDERR, "Linode::Longview::STDERRLogger";
- 	defined( my $pid = fork )      or $logger->logdie("Can't fork: $!");
- 	exit if $pid;
- 	setsid or $logger->logdie("Can't start a new session: $!");
- 	umask 022;
- 	system "echo $$ > $pid_file";
- 	#>>>
+	setsid
+		or $logger->logdie("Can't start a new session: $!");
+	umask 022;
 }
 
 sub check_already_running {
