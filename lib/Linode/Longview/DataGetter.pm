@@ -48,33 +48,37 @@ sub run_order {
 }
 
 sub load_modules {
-  $dep_info = {};
-  $module_order = [];
+	$dep_info = {};
+	$module_order = [];
 
-  my @modules_on_disk;
+	my @modules_on_disk;
 
-  my $find_sub = sub {
-    return if ! -f;
-    return unless m/\.pm$/;
-    my $module = $File::Find::name;
-    $logger->info("Loading module $module");
-    require $module;
-    (my $rpath = $module)   =~ s|$module_path||;;
-    (my $namepace = $rpath) =~ s|\.pm$||;
-    $namepace =~ s|/|::|;
-    {
-      no strict 'refs';
-      $dep_info->{$rpath} = ${"Linode::Longview::DataGetter::${namepace}::DEPENDENCIES"};
-    }
-  };
-  find($find_sub,$module_path);
-  my $resolve = resolve_deps($dep_info);
-  print_unresolved($resolve->{unresolved}) if (keys %{$resolve->{unresolved}});
-  $module_order = $resolve->{resolved};
-  for (@{$module_order}){
-    s|\.pm$||;
-    s|/|::|;
-  }
+	my $find_sub = sub {
+		return if ! -f;
+		return unless m/\.pm$/;
+		my $module = $File::Find::name;
+		$logger->info("Loading module $module");
+		eval {
+			require $module;
+			(my $rpath = $module)   =~ s|$module_path||;;
+			(my $namepace = $rpath) =~ s|\.pm$||;
+			$namepace =~ s|/|::|;
+			no strict 'refs';
+			$dep_info->{$rpath} = ${"Linode::Longview::DataGetter::${namepace}::DEPENDENCIES"};
+			1;
+		} or do {
+			my $error = $@ || "Unknown error";
+			$logger->error( "Loading $module failed: $error" );
+		};
+	};
+	find($find_sub,$module_path);
+	my $resolve = resolve_deps($dep_info);
+	print_unresolved($resolve->{unresolved}) if (keys %{$resolve->{unresolved}});
+	$module_order = $resolve->{resolved};
+	for (@{$module_order}) {
+		s|\.pm$||;
+		s|/|::|;
+	}
 }
 
 sub reload_modules {
