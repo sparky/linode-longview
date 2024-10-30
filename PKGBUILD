@@ -1,5 +1,5 @@
 pkgname=linode-longview
-pkgver=1.1.5
+pkgver=1.1.5.sparky.2024.10.30
 pkgrel=1
 pkgdesc="A system monitoring agent for Linode customers."
 arch=('any')
