@@ -43,7 +43,7 @@ sub get {
 	my (undef, $dataref) = @_;
 	$logger->trace('Collecting Disk info');
 
-	my @swaps   = @{ _get_swap_info() };
+	my @swaps = @{ _get_swap_info() };
 	_get_mounted_info($dataref);
 
 	# OpenVZ doesn't do /proc/diskstats, bail
@@ -76,7 +76,7 @@ sub get {
 			# if the filesystem sees it under /dev
 			if ( -b $device ) {
 				unless (keys(%dev_mapper)) {
-					%dev_mapper = map { substr(readlink($_),3) => substr($_,12); } (glob("/dev/mapper/*"));
+					%dev_mapper = map { substr(readlink($_),3) => substr($_,12); } (grep -l $_, glob("/dev/mapper/*"));
 				}
 				if (exists($dev_mapper{substr($device,5)})) {
 					$dataref->{INSTANT}->{"Disk.$e_device.label"} = $dev_mapper{substr($device,5)};

@@ -109,9 +109,8 @@ while (!$quit) {
 	$stats->{timestamp} = time;
 	my $req = post($stats);
 
-	if ($req->is_success){
-		$logger->debug($req->status_line);
-		$logger->debug($req->decoded_content);
+	if ($req->is_success) {
+		$logger->debug( sprintf "POST returned %s: %s", $req->status_line, $req->decoded_content );
 		my $rep;
 		try {
 			$rep = decode_json($req->decoded_content);
@@ -124,9 +123,8 @@ while (!$quit) {
 		}
 		@{$stats->{payload}} = ();
 	}
-	else{
-		$logger->info($req->status_line);
-		$logger->info($req->decoded_content);
+	else {
+		$logger->info( sprintf "POST returned %s: %s", $req->status_line, $req->decoded_content );
 	}
 
 	sleep $sleep;

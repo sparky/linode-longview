@@ -49,7 +49,7 @@ sub process_info {
 	my %proc;
 
 	# all or nothing, grab what we need asap
-	my @proc_file  = slurp_file( $PROCFS . "$pid/status" ) or return;
+	my @proc_file = slurp_file( $PROCFS . "$pid/status" ) or return;
 	my $stat_line = slurp_file( $PROCFS . "$pid/stat" )   or return;
 	my $cmd_line = slurp_file( $PROCFS . "$pid/cmdline" ) or return;
 	# io stats are optional depending on kernel

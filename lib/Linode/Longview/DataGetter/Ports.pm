@@ -44,7 +44,7 @@ sub get {
 	$logger->trace('Collecting port information');
 
 	my @procs = Linode::Longview::DataGetter::Processes::process_list();
-	my ( %listening,    %active );
+	my ( %listening, %active );
 	my ( @listening_out, @active_out );
 
 	for my $proc (@procs) {

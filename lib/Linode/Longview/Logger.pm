@@ -5,17 +5,14 @@ use warnings;
 use Exporter 'import';
 our @EXPORT = qw($levels);
 
-use File::Path;
-use POSIX 'strftime';
-
 our $levels = {
-    trace  => 6,
-    debug  => 5,
-    info   => 4,
-    warn   => 3,
-    error  => 2,
-    fatal  => 1,
-    logdie => 0,
+	trace  => 6,
+	debug  => 5,
+	info   => 4,
+	warn   => 3,
+	error  => 2,
+	fatal  => 1,
+	logdie => 0,
 };
 # emerg   0 # red
 # alert   1 # red
@@ -74,12 +71,12 @@ my %colour = (
 }
 
 sub new {
-    my ( $class, $level ) = @_;
-    my $self = {
-	    level => $level,
-    };
+	my ( $class, $level ) = @_;
+	my $self = {
+		level => $level,
+	};
 
-    return bless $self, $class;
+	return bless $self, $class;
 }
 
 sub level {

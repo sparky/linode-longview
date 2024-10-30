@@ -66,7 +66,6 @@ our $SLEEP_TIME = 60;
 
 our $apikey;
 
-my $pid_file    = '/var/run/longview.pid';
 my $conf_path   = '/etc/linode/longview.d/';
 my $slots = 10;
 my %push_iteration;
@@ -231,46 +230,41 @@ sub daemonize_self {
 }
 
 sub check_already_running {
-	return 0 unless (-e $pid_file);
-	my $pid = slurp_file($pid_file);
-	return 0 unless -e $PROCFS . "$pid/cmdline";
-	my $name = slurp_file($PROCFS . "$pid/cmdline");
-	return $pid if $name =~ /longview/i;
 	return 0;
 }
 
 sub get_config_file_name {
-       my $caller = shift || caller ;
-       $caller =~ s/.*:://;
-       return $conf_path . $caller . '.conf';
+	my $caller = shift || caller ;
+	$caller =~ s/.*:://;
+	return $conf_path . $caller . '.conf';
 }
 
 sub get_config_data {
-       my $file = shift;
-       my $ret  = {};
-       open my $fh, '<', $file or do {
-               $logger->warn("Unable to open $file: $!");
-               return $ret;
-       };
-       while (my $line = <$fh>) {
-               next if $line =~ /^\s*#/;
-               next if $line =~ /^\s*$/;
-               my ($key, $value) = $line =~ /^\s*(\S*)\s+(\S*)\s*$/;
-               unless ($key && $value) {
-                       $logger->error("Unable to parse line in $file: '$line' does not conform to standard");
-                       next;
-               }
-               $ret->{$key} = $value;
-       }
-       return $ret;
+	my $file = shift;
+	my $ret  = {};
+	open my $fh, '<', $file or do {
+		$logger->warn("Unable to open $file: $!");
+		return $ret;
+	};
+	while (my $line = <$fh>) {
+		next if $line =~ /^\s*#/;
+		next if $line =~ /^\s*$/;
+		my ($key, $value) = $line =~ /^\s*(\S*)\s+(\S*)\s*$/;
+		unless ($key && $value) {
+			$logger->error("Unable to parse line in $file: '$line' does not conform to standard");
+			next;
+		}
+		$ret->{$key} = $value;
+	}
+	return $ret;
 }
 
 sub application_error {
-        my ($dataref, $namespace, $message, $code) = @_;
-        $logger->error($message);
-        $dataref->{INSTANT}->{$namespace . 'status'}         = $code;
-        $dataref->{INSTANT}->{$namespace . 'status_message'} = $message;
-        return $dataref;
+	my ($dataref, $namespace, $message, $code) = @_;
+	$logger->error($message);
+	$dataref->{INSTANT}->{$namespace . 'status'}         = $code;
+	$dataref->{INSTANT}->{$namespace . 'status_message'} = $message;
+	return $dataref;
 }
 
 sub application_preflight {

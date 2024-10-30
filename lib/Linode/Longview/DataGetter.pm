@@ -82,62 +82,62 @@ sub load_modules {
 }
 
 sub reload_modules {
-  $logger->info("Reloading modules");
-  delete $INC{$_} for grep {m|$module_path|} (keys %INC);
-  load_modules();
+	$logger->info("Reloading modules");
+	delete $INC{$_} for grep {m|$module_path|} (keys %INC);
+	load_modules();
 }
 
 sub resolve_deps {
-  my $origGraph = shift;
-  my $depGraph = {};
-  #copy our dependency data so we don't wreck the original
-  @{$depGraph->{$_}} = @{$origGraph->{$_}} for (keys %{$origGraph});
-  my @resolved;
-  my @unresolved = keys %{$depGraph};
-  my @pending;
-  #Move everything with no dependencies straight in to pending
-  for my $child (keys %{$depGraph}) {
-    if (scalar(@{$depGraph->{$child}})==0) {
-      push @pending, $child;
-      @unresolved = grep {$_ ne $child} @unresolved;
-      delete $depGraph->{$child};
-     }
-  }
-  #Move things from pending to resolved, preform book keeping on children as needed
-  while (@pending) {
-    my $current = shift @pending;
-    push @resolved,$current;
-    my @needBookKeeping = grep {grep {$_ eq $current} @{$depGraph->{$_}}} keys %{$depGraph};
-    foreach my $child (@needBookKeeping) {
-      #remove the resolved dependency from that child's list
-      @{$depGraph->{$child}} = grep {$_ ne $current} @{$depGraph->{$child}};
-      #if that child has no further dependencies move it in to pending
-      unless (@{$depGraph->{$child}}){
-        push @pending, $child;
-        @unresolved = grep {$_ ne $child} @unresolved;
-        delete $depGraph->{$child};
-      }
-    }
-  }
+	my $origGraph = shift;
+	my $depGraph = {};
+	#copy our dependency data so we don't wreck the original
+	@{$depGraph->{$_}} = @{$origGraph->{$_}} for (keys %{$origGraph});
+	my @resolved;
+	my @unresolved = keys %{$depGraph};
+	my @pending;
+	#Move everything with no dependencies straight in to pending
+	for my $child (keys %{$depGraph}) {
+		if (scalar(@{$depGraph->{$child}})==0) {
+			push @pending, $child;
+			@unresolved = grep {$_ ne $child} @unresolved;
+			delete $depGraph->{$child};
+		}
+	}
+	#Move things from pending to resolved, preform book keeping on children as needed
+	while (@pending) {
+		my $current = shift @pending;
+		push @resolved,$current;
+		my @needBookKeeping = grep {grep {$_ eq $current} @{$depGraph->{$_}}} keys %{$depGraph};
+		foreach my $child (@needBookKeeping) {
+			#remove the resolved dependency from that child's list
+			@{$depGraph->{$child}} = grep {$_ ne $current} @{$depGraph->{$child}};
+			#if that child has no further dependencies move it in to pending
+			unless (@{$depGraph->{$child}}){
+				push @pending, $child;
+				@unresolved = grep {$_ ne $child} @unresolved;
+				delete $depGraph->{$child};
+			}
+		}
+	}
 
-  return {resolved=>\@resolved,unresolved=>$depGraph};
+	return {resolved=>\@resolved,unresolved=>$depGraph};
 }
 
 sub print_unresolved {
-  my $unresolvedDeps = shift;
-  $logger->error("Unresolved dependencies for the following modules:");
-  for my $parent (keys %{$unresolvedDeps}) {
-    my $broke_dep = "$parent => ";
-    for my $child (@{$unresolvedDeps->{$parent}}) {
-      $broke_dep .= "$child ";
-    }
-    $logger->error($broke_dep);
-  }
+	my $unresolvedDeps = shift;
+	$logger->error("Unresolved dependencies for the following modules:");
+	for my $parent (keys %{$unresolvedDeps}) {
+		my $broke_dep = "$parent => ";
+		for my $child (@{$unresolvedDeps->{$parent}}) {
+			$broke_dep .= "$child ";
+		}
+		$logger->error($broke_dep);
+	}
 }
 
 sub get {
-  my ($key,$dataref) = @_;
-  return "Linode::Longview::DataGetter::${key}"->get($dataref);
+	my ($key,$dataref) = @_;
+	return "Linode::Longview::DataGetter::${key}"->get($dataref);
 }
 
 1;
