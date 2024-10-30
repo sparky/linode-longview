@@ -33,9 +33,22 @@ use warnings;
 
 use Sys::Hostname;
 
-use Linode::Longview::Util ':SYSINFO';
-use Linux::Distribution qw(distribution_name distribution_version);
+use Linode::Longview::Util qw(:SYSINFO slurp_file);
 use POSIX 'uname';
+
+my $distribution_name = "unknown";
+my $distribution_version = "unknown";
+eval {
+	require Linux::Distribution;
+	$distribution_name = Linux::Distribution::distribution_name();
+	$distribution_version = Linux::Distribution::distribution_version();
+	1;
+} or eval {
+	my $lsb = slurp_file( "/etc/lsb-release" );
+	my %entries = $lsb =~ /^(\S+?)="(.*)"/mg;
+	$distribution_name = $entries{DISTRIB_ID} // "unknown";
+	$distribution_version = $entries{DISTRIB_RELEASE} // "unknown";
+};
 
 our $DEPENDENCIES = [];
 
@@ -43,12 +56,8 @@ sub get {
 	my (undef, $dataref) = @_;
 	$logger->trace('Collecting SysInfo');
 
-	$dataref->{INSTANT}->{'SysInfo.os.dist'}			= 'unknown';
-	$dataref->{INSTANT}->{'SysInfo.os.distversion'} 	= 'unknown';
-	if ( my $distro = distribution_name() ) {
-		$dataref->{INSTANT}->{'SysInfo.os.dist'} 		= ucfirst($distro);
-		$dataref->{INSTANT}->{'SysInfo.os.distversion'} = distribution_version();
-	}
+	$dataref->{INSTANT}->{'SysInfo.os.dist'} = $distribution_name;
+	$dataref->{INSTANT}->{'SysInfo.os.distversion'} = $distribution_version;
 
 	$dataref->{INSTANT}->{'SysInfo.client'} = $VERSION;
 
