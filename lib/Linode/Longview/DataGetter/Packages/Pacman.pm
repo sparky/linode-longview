@@ -52,7 +52,7 @@ sub get
 	my $now = time();
 	if ( $now > $next_run )
 	{
-		$next_run = $now + 60;
+		$next_run = $now + 60 * 60;
 		$logger->trace( 'Pacman: pulling new package list' );
 		system "pacman -Sy >/dev/null 2>&1";
 	}
