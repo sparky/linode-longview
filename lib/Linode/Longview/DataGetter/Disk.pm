@@ -31,178 +31,111 @@ See the full license at L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
-use Linode::Longview::Util qw(:BASIC detect_system);
-use POSIX 'uname';
+use Linode::Longview::Util qw(:BASIC);
 use Cwd 'abs_path';
-use Config;
 use Filesys::Df;
 
 our $DEPENDENCIES = [];
 
-sub get {
-	my (undef, $dataref) = @_;
-	$logger->trace('Collecting Disk info');
+my %sector_size_cache;
+my sub get_sector_size
+{
+	my ( $device ) = @_;
+	do
+	{
+		my $sector_size = slurp_file( "/sys/block/$device/queue/hw_sector_size" );
+		return $sector_size if $sector_size;
+		chop $device;
+	} while ( length $device );
 
-	my @swaps = @{ _get_swap_info() };
-	_get_mounted_info($dataref);
+	my $default = 512;
+	$logger->warn( "No sector size for device $_[0]. Defaulting to $default" );
+	return $default;
+}
 
-	# OpenVZ doesn't do /proc/diskstats, bail
-	return $dataref if ( detect_system() eq 'openvz' );
+sub get
+{
+	my ( undef, $dataref ) = @_;
+	$logger->trace( 'Collecting Disk info' );
+
+	my $mapping = _get_mounted_info($dataref);
 
 	# get the information from /proc/diskstats
-	my @data = slurp_file( $PROCFS . 'diskstats' )or do {
-		$logger->info("Couldn't read ${PROCFS}diststats: $!");
+	my @diskstats = slurp_file( $PROCFS . 'diskstats' )or do {
+		$logger->info( "Couldn't read ${PROCFS}diststats: $!" );
 		return $dataref;
 	};
-	my %dev_mapper;
-	for my $line (@data) {
-		$line =~ s/^\s*//;
 
+	my %dev_mapper;
+	foreach my $line ( @diskstats )
+	{
 		#  202 0 xvda 3125353 13998 4980 2974 366 591 760 87320 15 366 9029
-		my ( $major, $minor, $device, $reads, $read_sectors, $writes, $write_sectors ) = ( split( /\s+/, $line ) )[ 0..3, 5, 7, 9 ];
-		my $sector_size = slurp_file("/sys/block/$device/queue/hw_sector_size");
-		unless(defined $sector_size){
-			(my $phys_dev = $device) =~ s/\d+$//;
-			$sector_size = slurp_file("/sys/block/$phys_dev/queue/hw_sector_size");
-			$sector_size = 512 unless defined $sector_size;
-		}
+		my ( undef, $major, $minor, $device,
+			$reads, $reads_merged, $read_sectors, $read_time,
+			$writes, $writes_merged, $write_sectors, $write_time ) = split /\s+/, $line;
+
+		my $name = $mapping->{ '/dev/' . $device }
+			or next;
+
+		my $sector_size = $sector_size_cache{ $device } //= get_sector_size( $device );
+
 		my $read_bytes = $read_sectors * $sector_size;
 		my $write_bytes = $write_sectors * $sector_size;
-		$device = '/dev/' . $device;
-		# escaped version for use inside the result hash
-		(my $e_device = $device) =~ s/\./\\\./g;
 
-		if (substr($device,0,8) eq '/dev/dm-') {
-			# if the filesystem sees it under /dev
-			if ( -b $device ) {
-				unless (keys(%dev_mapper)) {
-					%dev_mapper = map { substr(readlink($_),3) => substr($_,12); } (grep -l $_, glob("/dev/mapper/*"));
-				}
-				if (exists($dev_mapper{substr($device,5)})) {
-					$dataref->{INSTANT}->{"Disk.$e_device.label"} = $dev_mapper{substr($device,5)};
-				}
-			} else {
-				unless (keys(%dev_mapper)) {
-					%dev_mapper = map {
-						my $rdev=(stat($_))[6];
-						my $major_m = ($rdev & 03777400) >> 0000010;
-						my $minor_m = ($rdev & 037774000377) >> 0000000;
-						join('_', $major_m,$minor_m) => substr($_,12);
-					} glob ("/dev/mapper/*");
-				}
-				if (exists($dev_mapper{$major."_".$minor})) {
-					$dataref->{INSTANT}->{"Disk.$e_device.label"} = $dev_mapper{$major."_".$minor};
-				}
-			}
-		} elsif ($device =~ m|(/dev/md\d+)(p\d+)?|) {
-			if (defined($2)) {
-				# it's a partition
-				$dataref->{INSTANT}->{"Disk.$e_device.childof"} = $1;
-				if ($dataref->{INSTANT}->{"Disk.$1.children"} == 0) {
-					undef $dataref->{INSTANT}->{"Disk.$1.children"};
-				}
-				push @{$dataref->{INSTANT}->{"Disk.$1.children"}}, "$1$2";
-			} else {
-				next unless ($reads || $writes);
-			}
-		} else {
-			# don't check out this guy if he has no writes and isn't someone we care about
-			next unless ( (exists($dataref->{LONGTERM}->{"Disk.$e_device.fs.free"})) || (grep { $_ eq $device } @swaps));
-		}
-		$dataref->{LONGTERM}->{"Disk.$e_device.reads"}  = $reads + 0;
-		$dataref->{LONGTERM}->{"Disk.$e_device.writes"} = $writes + 0;
-		$dataref->{LONGTERM}->{"Disk.$e_device.read_bytes"}  = $read_bytes + 0;
-		$dataref->{LONGTERM}->{"Disk.$e_device.write_bytes"} = $write_bytes + 0;
-		$dataref->{INSTANT}->{"Disk.$e_device.isswap"}  = (grep { $_ eq $device } @swaps) ? 1 : 0;
-		unless (exists($dataref->{INSTANT}->{"Disk.$e_device.mounted"})) {
-			$dataref->{INSTANT}->{"Disk.$e_device.mounted"} = 0;
-		}
-		unless (exists($dataref->{INSTANT}->{"Disk.$e_device.dm"})) {
-			$dataref->{INSTANT}->{"Disk.$e_device.dm"} = 0;
-		}
-		unless (exists($dataref->{INSTANT}->{"Disk.$e_device.childof"})) {
-			$dataref->{INSTANT}->{"Disk.$e_device.childof"} = 0;
-		}
-		unless (exists($dataref->{INSTANT}->{"Disk.$e_device.children"})) {
-			$dataref->{INSTANT}->{"Disk.$e_device.children"} = 0;
-		}
+		$dataref->{LONGTERM}->{"Disk.$name.reads"}  = $reads + 0;
+		$dataref->{LONGTERM}->{"Disk.$name.writes"} = $writes + 0;
+		$dataref->{LONGTERM}->{"Disk.$name.read_bytes"}  = $read_bytes + 0;
+		$dataref->{LONGTERM}->{"Disk.$name.write_bytes"} = $write_bytes + 0;
 	}
 
 	return $dataref;
 }
 
-sub _get_swap_info {
-	my @proc_swaps = slurp_file( $PROCFS . 'swaps' ) or do {
-		$logger->info("Couldn't read ${PROCFS}swaps: $!");
-		return [];
-	};
-
-	# first line of /proc/swaps is a header
-	shift @proc_swaps;
-
-	my @swaps;
-	for my $line (@proc_swaps) {
-
-		# /dev/xvdb partition 262140 122988 -1
-		my ($device, $type, $size, $used ) = ( split( /\s+/, $line ) )[ 0 .. 3 ];
-
-		# not tracking file-backed swaps
-		next if $type ne 'partition';
-		push @swaps, $device;
-	}
-	return \@swaps;
-}
-
-sub _get_mounted_info {
+sub _get_mounted_info
+{
 	my $dataref = shift;
-	my %devices;
+
 	my @mtab = slurp_file('/etc/mtab') or do {
 		$logger->info("Couldn't read /etc/mtab: $!");
 		return $dataref;
 	};
-	for my $line ( grep {m|^/|} @mtab ) {
-		my ( $device, $path ) = ( $line =~ m|^(\S+)\s+(\S+)| );
-		next unless $device && $path;
+	my %mapping;
+	foreach my $line ( grep m#^/#, @mtab )
+	{
+		my ( $device, $mountpoint ) = split /\s+/, $line;
+		next unless $device and $mountpoint;
 
-		if ( $device =~ m|^/dev/mapper| ) {
-			my $linkpath = readlink($device);
-			if ($linkpath) {
-				$device = abs_path("/dev/mapper/$linkpath");
-			}
-			else {
-				my $rdev=(stat($device))[6];
-				my $minor_m = ($rdev & 037774000377) >> 0000000;
-				$device = "/dev/dm-$minor_m";
-			}
-		}
-
-		if ($device =~ m|/dev/disk/by-uuid/[0-9a-f-]+|) {
-			$device = '/dev' . abs_path( readlink($device) );
-		}
-
-		if ($device eq '/dev/root') {
+		if ( $device eq '/dev/root' )
+		{
 			my $root_dev = slurp_file($PROCFS . 'cmdline');
 			($device) = ($root_dev =~ m|root=(\S+)|);
-			if ($device =~ /UUID=([0-9a-f-]*)/) {
-				$device = '/dev' . abs_path (readlink("/dev/disk/by-uuid/$1"));
-			}
+			$device = "/dev/disk/by-uuid/$1"
+				if $device =~ /UUID=([0-9a-f-]*)/;
 		}
 
-		my $df = df( $path, 1 );
+		# This will resolve the symlinks
+		$device = abs_path( $device );
 
-		(my $e_device = $device) =~ s/\./\\\./g;
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.free"}   = $df->{bfree}
+		# Gather the FS usage data
+		my $df = df( $mountpoint, 1 );
+
+		# Escape all the dots
+		my $name = $mountpoint =~ s/\./\\\./gr;
+		$mapping{ $device } = $name;
+
+		$dataref->{LONGTERM}->{"Disk.$name.fs.free"}   = $df->{bfree}
 			if defined $df->{bfree};
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.total"}  = $df->{blocks}
+		$dataref->{LONGTERM}->{"Disk.$name.fs.total"}  = $df->{blocks}
 			if defined $df->{blocks};
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.ifree"}  = $df->{ffree}
+		$dataref->{LONGTERM}->{"Disk.$name.fs.ifree"}  = $df->{ffree}
 			if defined $df->{ffree};
-		$dataref->{LONGTERM}->{"Disk.$e_device.fs.itotal"} = $df->{files}
+		$dataref->{LONGTERM}->{"Disk.$name.fs.itotal"} = $df->{files}
 			if defined $df->{files};
-		$dataref->{INSTANT}->{"Disk.$e_device.fs.path"}    = $path if (defined($path));
-		$dataref->{INSTANT}->{"Disk.$e_device.mounted"}    = 1;
+		$dataref->{INSTANT}->{"Disk.$name.fs.path"}    = $mountpoint;
+		$dataref->{INSTANT}->{"Disk.$name.mounted"}    = 1;
 	}
-	return $dataref;
+
+	return \%mapping;
 }
 
 1;
