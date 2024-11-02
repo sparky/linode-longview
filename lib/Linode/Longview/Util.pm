@@ -58,7 +58,7 @@ our $logger = get_logger();
 our $gua;
 our $post_target   = 'https://longview.linode.com/post';
 
-our $VERSION = '1.1.5.sparky.2024.10.30';
+our $VERSION = '1.1.5.sparky.2024.11.02';
 our $TICKS   = POSIX::sysconf(&POSIX::_SC_CLK_TCK);
 our $PROCFS  = find_procfs()      or $logger->logdie("Couldn't find procfs: $!");
 our $ARCH    = get_architecture() or $logger->info("Couldn't determine architecture: $!");

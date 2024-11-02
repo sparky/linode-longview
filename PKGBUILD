@@ -1,5 +1,5 @@
 pkgname=linode-longview
-pkgver=1.1.5.sparky.2024.10.30
+pkgver=1.1.5.sparky.2024.11.02
 pkgrel=1
 pkgdesc="A system monitoring agent for Linode customers."
 arch=('any')
@@ -14,10 +14,15 @@ backup=('etc/linode/longview.key'
 	'etc/linode/longview.d/MySQL.conf'
 	'etc/linode/longview.d/Nginx.conf')
 install=linode-longview.install
-source=("${pkgname}-${pkgver}::git+file://$PWD")
+source=("${pkgname}-head::git+file://$PWD")
 sha256sums=('SKIP')
 
+pkgver() {
+	cd "${pkgname}-head"
+	perl -Ilib -MLinode::Longview::Util -e 'print $Linode::Longview::Util::VERSION'
+}
+
 package() {
-	cd "${pkgname}-${pkgver}"
+	cd "${pkgname}-head"
 	DESTDIR="$pkgdir" TARGET=vendor ./install.sh
 }
